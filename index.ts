@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import GoogleAuth, { GoogleKey } from 'cloudflare-workers-and-google-oauth';
 
 export interface Env {
@@ -9,10 +10,21 @@ export interface Env {
 
 const userText = '';
 const systemText =
-	'First, address, in detail, what is in the image. Then, present some sort of trivia about what is unique in the image. Finally, give your overall impression of the image';
+	'Please answer in no more than 100 words.Please share trivia or other knowledge (any area is fine, such as the development history, expansion in other countries, sales figures, ingredients, etc.) about what stands out in the given image. Also, please give your overall impression of the image (e.g. beautiful, etc.)Please keep your tone casual and doctoral.';
 
 const app = new Hono();
 export default app;
+
+app.use(
+	'/desc/*',
+	cors({
+		origin: ['https://wisdom.ozwk.net'],
+		allowHeaders: ['X-Custom-Header', 'Upgrade-Insecure-Requests', 'Content-Type'], // ここに追加
+		allowMethods: ['POST', 'OPTIONS'],
+		maxAge: 600,
+		credentials: true
+	})
+);
 
 app.post('/desc', async c => {
 	const body = await c.req.json();
@@ -23,7 +35,8 @@ app.post('/desc', async c => {
 	let explainText;
 
 	if (typeof image !== 'string') {
-		throw new Error('Invalid image format');
+		c.status(400);
+		return c.body('Invalid image data');
 	}
 	try {
 		explainText = await getExplainText(c, image, location, weather, time);
@@ -31,7 +44,7 @@ app.post('/desc', async c => {
 		c.status(500);
 		return c.body((e as Error).message);
 	}
-	return c.json({ text: explainText });
+	return await c.text(explainText);
 });
 
 async function getExplainText (c: any, image: string, location: string, weather: string, time: string) {
